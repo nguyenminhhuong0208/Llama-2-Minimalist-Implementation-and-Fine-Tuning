@@ -110,10 +110,10 @@ class Attention(nn.Module):
         attn_scores = torch.matmul(query,key.transpose(-2,-1)) / (self.head_dim**0.5)
 
         # Chuẩn hoá thành xác suất
-        attn_prob = torch.softmax(attn_scores)
+        attn_prob = torch.softmax(attn_scores, dim=-1)
 
         # Tính dropout (chưa làm)
-
+        attn_prob = self.attn_dropout(attn_prob)
         # Chuẩn hoá xác suất đầu ra
         attn_output = torch.matmul(attn_prob, value)
         return attn_output
