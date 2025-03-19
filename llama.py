@@ -107,12 +107,10 @@ class Attention(nn.Module):
         '''
         # todo
         # Tính attention score theo công thức: QK^T / sqrt(d_k)
-        attn_scores = torch.matmul(query,key.transpose(-2,-1)) / (self.head_dim**0.5)
-
+        attn_scores = torch.matmul(query,key.transpose(-2,-1)) / ((self.head_dim)**0.5)
         # Chuẩn hoá thành xác suất
         attn_prob = torch.softmax(attn_scores, dim=-1)
-
-        # Tính dropout (chưa làm)
+        # Tính dropout
         attn_prob = self.attn_dropout(attn_prob)
         # Chuẩn hoá xác suất đầu ra
         attn_output = torch.matmul(attn_prob, value)
@@ -229,7 +227,7 @@ class LlamaLayer(nn.Module):
         # 4)
         norm_x = self.ffn_norm(x)
         # 5)
-        ffn_output  = self.feed_forward(x)
+        ffn_output  = self.feed_forward(x_norm)
         # 6)
         x = x + ffn_output
         return x
