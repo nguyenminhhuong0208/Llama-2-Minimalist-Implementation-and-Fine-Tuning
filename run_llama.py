@@ -72,7 +72,7 @@ def create_data(filename, tokenizer: Tokenizer, flag: str ='train', lower: bool 
 	num_labels = {}
 	data = []
 
-	with open(filename, 'r') as fp:
+	with open(filename, 'r', encoding='utf-8') as fp:
 		for line in fp:
 			label, org_sent = line.split(' ||| ')
 			if lower:
@@ -102,6 +102,7 @@ def model_eval(dataloader, model, device):
 
 		b_ids = b_ids.to(device)
 
+		# print(b_ids.shape)
 		logits = model(b_ids)
 		logits = logits.detach().cpu().numpy()
 		preds = np.argmax(logits, axis=1).flatten()
@@ -151,9 +152,11 @@ def train(args):
 			  'pretrained_model_path': args.pretrained_model_path,
 			  'num_labels': num_labels,
 			  'data_dir': '.',
-			  'option': args.option}
+			  'option': args.option,
+			  'dim': 512}
 
 	config = SimpleNamespace(**config)
+	# print(f"config.dim: {config.dim}")  # In giá trị của config.dim
 
 	# initialize the Senetence Classification Model
 	model = LlamaEmbeddingClassifier(config)
@@ -176,6 +179,7 @@ def train(args):
 			b_labels = b_labels.to(device)
 
 			optimizer.zero_grad()
+			# print(b_ids.shape)
 			logits = model(b_ids)
 			loss = F.nll_loss(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
@@ -222,7 +226,7 @@ def generate_sentence(args, prefix, outfile, max_new_tokens = 75, temperature = 
 				writer.close()
 
 def write_predictions_to_file(split: str, outfile: str, acc: float, pred: list[str], sents: list[str]):
-	with open(outfile, "w+") as f:
+	with open(outfile, "w+", encoding='utf-8') as f:
 		print(f"{split} acc :: {acc :.3f}")
 		for s, p in zip(sents, pred):
 			f.write(f"{p} ||| {s}\n")
@@ -245,9 +249,11 @@ def test_with_prompting(args):
 				'label_names': label_names,
 				'num_labels': num_labels,
 				'data_dir': '.',
+				'dim': 512,
 				'option': args.option}
 
 		config = SimpleNamespace(**config)
+		# print(f"config.dim: {config.dim}")  # In giá trị của config.dim
 
 		if len(label_names) == 2:
 			label_name_str = " or ".join(label_names)

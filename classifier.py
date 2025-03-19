@@ -41,24 +41,27 @@ class LlamaEmbeddingClassifier(torch.nn.Module):
                 param.requires_grad = True
 
         self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
-        self.classifier_head = torch.nn.Linear(self.llama.config.dim, self.num_labels)
+        self.classifier_head = torch.nn.Linear(config.dim, self.num_labels)  # Sử dụng config.dim
 
     def forward(self, input_ids):
         '''
         1) Find the hidden state after the final token of the input sequence
         2) Apply dropout (self.dropout) to the hidden state at training time to mitigate
-           overfitting.
+            overfitting.
         3) Pass this through the classifier head (self.classifier_head), which will return
-           logits (unnormalized probabilities) over all classes.
+            logits (unnormalized probabilities) over all classes.
         4) Take the log-softmax of the logits and return log-probabilities over all classes.
         '''
         # 1) Obtain the model's output for all tokens
         outputs = self.llama(input_ids)
-        hidden_states = outputs[0]  # Shape: (batch_size, sequence_length, hidden_size)
+        # print(f"TypeType of outputs: {type(outputs)}")  # In shape of outputs
+        logits, hidden_states = outputs  # Shape: (batch_size, sequence_length, hidden_size)
+        # print(f"Shape of hidden_states: {hidden_states.shape}")
         # 2) Select the output of the final token
         final_hidden_state = hidden_states[:, -1, :]  # Shape: (batch_size, hidden_size)
+        # print(f"Shape of final_hidden_state: {final_hidden_state.shape}")
         # 3) Apply dropout only during training
-        if self.training:  
+        if self.training:
             final_hidden_state = self.dropout(final_hidden_state)
         # 4) Obtain logits from the classifier head
         logits = self.classifier_head(final_hidden_state)  # Shape: (batch_size, num_labels)
