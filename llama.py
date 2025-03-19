@@ -336,15 +336,12 @@ class Llama(LlamaPreTrainedModel):
 
                 Note that we are not using top-k sampling/nucleus sampling in this procedure.
                 '''
-                idx_next = None
+                # idx_next = None
                 logits = logits / temperature
                 prob = torch.softmax(logits, dim=-1)
                 idx_next = torch.multinomial(prob, num_samples=1)
-
             # append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
-
-
         return idx
 
 def load_pretrained(checkpoint):
