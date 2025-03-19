@@ -227,7 +227,7 @@ class LlamaLayer(nn.Module):
         # 4)
         norm_x = self.ffn_norm(x)
         # 5)
-        ffn_output  = self.feed_forward(x_norm)
+        ffn_output  = self.feed_forward(norm_x)
         # 6)
         x = x + ffn_output
         return x
