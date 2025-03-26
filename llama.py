@@ -12,6 +12,8 @@ from utils import *
 # Root Mean Square Layer Normalization (https://arxiv.org/abs/1910.07467)
 # borrowed from the official Llama implementation:
 # https://github.com/facebookresearch/llama/blob/main/llama/model.py
+
+#count=0
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6):
         """
@@ -44,8 +46,9 @@ class RMSNorm(torch.nn.Module):
             torch.Tensor: The normalized tensor.
         """
         # todo
-        # rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True + self.eps))
-        return x / torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        # raise NotImplementedError
+        #print(x / torch.sqrt((x**2).mean(-1, keepdim=True) + self.eps))
+        return x / torch.sqrt((x**2).mean(-1, keepdim=True) + self.eps) 
 
     def forward(self, x):
         """
@@ -70,7 +73,7 @@ class Attention(nn.Module):
         self.n_local_heads = config.n_heads // model_parallel_size
         self.n_local_kv_heads = self.n_kv_heads // model_parallel_size
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
-        self.head_dim = config.dim // config.n_heads
+        self.head_dim = config.dim // config.n_heads #埋め込みベクトルの次元/アテンションヘッドの数？<-なぜキーやクエリの次元数になる？あるいはならない？
         self.max_seq_len = config.max_seq_len
         self.compute_query = nn.Linear(config.dim, config.n_heads * self.head_dim, bias=False)
         self.compute_key = nn.Linear(config.dim, self.n_kv_heads * self.head_dim, bias=False)
@@ -94,28 +97,26 @@ class Attention(nn.Module):
         Make sure to use attention_dropout (self.attn_dropout) on the computed
         attention matrix before applying it to the value tensor.
         '''
-        '''
-        Compute Scaled Dot-Product Attention.
-        
-        Args:
-            query: (batch_size, n_heads, seq_len, head_dim)
-            key: (batch_size, n_heads, seq_len, head_dim)
-            value: (batch_size, n_heads, seq_len, head_dim)
-
-        Returns:
-            torch.Tensor: Attention output of shape (batch_size, n_heads, seq_len, head_dim).
-        '''
         # todo
-        # Tính attention score theo công thức: QK^T / sqrt(d_k)
-        attn_scores = torch.matmul(query,key.transpose(-2,-1)) / ((self.head_dim)**0.5)
-        # Chuẩn hoá thành xác suất
-        attn_prob = torch.softmax(attn_scores, dim=-1)
-        # Tính dropout
-        attn_prob = self.attn_dropout(attn_prob)
-        # Chuẩn hoá xác suất đầu ra
-        attn_output = torch.matmul(attn_prob, value)
-        return attn_output
         # raise NotImplementedError
+        #print("query", query.shape)
+        #print("key", key.shape)
+        #print(self.head_dim)
+        global count
+        scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.head_dim) 
+        #scores = torch.matmul(query, key) / math.sqrt(self.head_dim) 
+        atten = F.softmax(scores, dim=-1) #softmax
+        atten = self.attn_dropout(atten) #attention_dropout
+        output = torch.matmul(atten, value)
+        
+        '''
+        if count==0:
+            print(scores)
+        count+=1
+        '''
+        
+        return output
+        
 
     def forward(
         self,
@@ -136,8 +137,8 @@ class Attention(nn.Module):
         key = self.compute_key(x)
         value = self.compute_value(x)
         query = query.view(batch_size, seqlen, self.n_local_heads, self.head_dim)
-        key = key.view(batch_size, seqlen, self.n_local_kv_heads, self.head_dim)
-        value = value.view(batch_size, seqlen, self.n_local_kv_heads, self.head_dim)
+        key = key.view(batch_size, seqlen, self.n_local_kv_heads, self.head_dim) 
+        value = value.view(batch_size, seqlen, self.n_local_kv_heads, self.head_dim) 
 
         # RoPE relative positional embeddings
         query, key = apply_rotary_emb(query, key, self.head_dim, self.max_seq_len)
@@ -192,7 +193,7 @@ class LlamaLayer(nn.Module):
         self.dim = config.dim
         self.head_dim = config.dim // config.n_heads
         self.attention = Attention(config)
-        self.feed_forward = FeedForward(    
+        self.feed_forward = FeedForward(
             dim=config.dim,
             hidden_dim=config.hidden_dim,
             multiple_of=config.multiple_of,
@@ -212,26 +213,20 @@ class LlamaLayer(nn.Module):
         1) layer normalization of the input (via Root Mean Square layer normalization)
         2) self-attention on the layer-normalized input
         3) a residual connection (i.e., add the input to the output of the self-attention)
-        4) layer normalization on the output of the self-attention
-        5) a feed-forward network on the layer-normalized output of the self-attention
-        6) add a residual connection from the unnormalized self-attention output to the
+        3) layer normalization on the output of the self-attention
+        4) a feed-forward network on the layer-normalized output of the self-attention
+        5) add a residual connection from the unnormalized self-attention output to the
            output of the feed-forward network
         '''
         # todo
-        # 1)
-        norm_x = self.attention_norm(x)
-        # 2)
-        attn_output = self.attention(norm_x)
-        # 3)
-        x = x + attn_output
-        # 4)
-        norm_x = self.ffn_norm(x)
-        # 5)
-        ffn_output  = self.feed_forward(norm_x)
-        # 6)
-        x = x + ffn_output
-        return x
         # raise NotImplementedError
+        x_norm = self.attention_norm(x)
+        attention_output = self.attention(x_norm)
+        x = x + attention_output 
+        x_norm = self.ffn_norm(x)
+        ff_output = self.feed_forward(x_norm) 
+        x = x + ff_output 
+        return x
 
 class Llama(LlamaPreTrainedModel):
     def __init__(self, config: LlamaConfig):
@@ -293,16 +288,6 @@ class Llama(LlamaPreTrainedModel):
     @torch.inference_mode()
     def generate(self, idx, max_new_tokens, temperature=1.0):
         """
-        Args:
-            idx (torch.LongTensor): Dãy đầu vào có kích thước (batch_size, seq_len).
-            max_new_tokens (int): Số lượng token mới cần sinh.
-            temperature (float): Hệ số kiểm soát mức độ ngẫu nhiên. Nếu = 0.0, dùng greedy search.
-
-        Returns:
-            torch.LongTensor: Chuỗi đầu ra có kích thước (batch_size, seq_len + max_new_tokens).
-        """
-
-        """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         We perform this generation using basic temperature sampling. Note that we are not using
@@ -318,11 +303,11 @@ class Llama(LlamaPreTrainedModel):
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :] # crop to just the final time step
             # todo
-
             # raise NotImplementedError
 
             if temperature == 0.0:
                 # select the single most likely index
+                # idx_next = None
                 idx_next = torch.argmax(logits, dim=-1, keepdim=True)
             else:
                 '''
@@ -334,12 +319,13 @@ class Llama(LlamaPreTrainedModel):
 
                 Note that we are not using top-k sampling/nucleus sampling in this procedure.
                 '''
-                # idx_next = None
-                logits = logits / temperature
-                prob = torch.softmax(logits, dim=-1)
-                idx_next = torch.multinomial(prob, num_samples=1)
-            # append sampled index to the running sequence and continue
+                idx_next = None
+                logits = logits / temperature 
+                probs = F.softmax(logits, dim=-1) #probably
+                idx_next = torch.multinomial(probs, num_samples=1) 
             idx = torch.cat((idx, idx_next), dim=1)
+
+
         return idx
 
 def load_pretrained(checkpoint):
